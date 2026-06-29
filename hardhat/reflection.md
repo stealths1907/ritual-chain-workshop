@@ -1,0 +1,9 @@
+# Reflection: Privacy, Transparency, and AI in Bounty Systems
+
+**"What should be public, what should stay hidden, and what should be decided by AI versus by a human in a bounty system?"**
+
+In a well-designed bounty system, the bounty description, rubric, reward amount, and deadlines should always be fully public—transparency in the rules ensures fairness and attracts high-quality participants. Submission content, however, must remain hidden during the submission phase to prevent plagiarism and front-running; the commit-reveal pattern achieves this by storing only hashes on-chain until the reveal window opens. Even after judging, there are valid cases (like security vulnerability reports) where answers should stay permanently hidden, which is where Ritual's TEE-encrypted approach provides a clear advantage over simple commit-reveal.
+
+AI is best suited for the initial evaluation and scoring of submissions—it can consistently apply a rubric across many entries without bias toward known participants, and it can process technical answers faster than any human panel. However, the final decision on the winner should remain with a human (the bounty owner) because AI can be gamed with prompt injection, may miss nuanced context, and cannot bear legal or financial responsibility for the payout decision. The ideal system uses AI as a powerful advisory layer that narrows the field and provides structured scores, while a human makes the final call with full visibility into the AI's reasoning.
+
+Participant identities (wallet addresses) should be hidden from the AI during judging to prevent any form of identity-based bias, but must be publicly linked to submissions after finalization for accountability and proof of work. The balance between privacy and transparency is not binary—it shifts across the bounty lifecycle, and the best systems make each transition explicit and verifiable on-chain.

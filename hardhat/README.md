@@ -1,57 +1,90 @@
-# Sample Hardhat 3 Project (`node:test` and `viem`)
+# Privacy-Preserving AI Bounty Judge (Commit-Reveal)
 
-This project showcases a Hardhat 3 project using the native Node.js test runner (`node:test`) and the `viem` library for Ethereum interactions.
+A Solidity smart contract implementing a **two-phase commit-reveal** flow for Ritual Chain's AI Bounty system. This prevents participants from copying others' submissions before the judging phase.
 
-To learn more about Hardhat 3, please visit the [Getting Started guide](https://hardhat.org/docs/getting-started#getting-started-with-hardhat-3). To share your feedback, join our [Hardhat 3](https://hardhat.org/hardhat3-telegram-group) Telegram group or [open an issue](https://github.com/NomicFoundation/hardhat/issues/new) in our GitHub issue tracker.
+## Problem
 
-## Project Overview
+In the original `AIJudge.sol`, submissions were stored as plaintext on-chain. This allowed:
+- Participants to read others' answers and submit improved versions
+- Front-running attacks where someone copies a good answer
+- Unfair advantage for late submitters
 
-This example project includes:
+## Solution: Commit-Reveal Flow
 
-- A simple Hardhat configuration file.
-- Foundry-compatible Solidity unit tests.
-- TypeScript integration tests using [`node:test`](nodejs.org/api/test.html), the new Node.js native test runner, and [`viem`](https://viem.sh/).
-- Examples demonstrating how to connect to different types of networks, including locally simulating OP mainnet.
+### Lifecycle
 
-## Usage
+```
+Phase 1: COMMIT (before deadline)
+  └─ Participants submit hash: keccak256(answer, salt, sender, bountyId)
+  └─ No one can see the actual answers
 
-### Running Tests
+Phase 2: REVEAL (deadline → revealDeadline)
+  └─ Participants reveal their answer + salt
+  └─ Contract verifies hash matches commitment
+  └─ Invalid reveals are rejected
 
-To run all the tests in the project, execute the following command:
+Phase 3: JUDGE (after revealDeadline)
+  └─ Owner triggers AI judging via Ritual LLM precompile
+  └─ All revealed answers are evaluated at once
 
-```shell
-npx hardhat test
+Phase 4: FINALIZE
+  └─ Owner picks the winner based on AI review
+  └─ Reward is automatically transferred
 ```
 
-You can also selectively run the Solidity or `node:test` tests:
+### Key Functions
 
-```shell
-npx hardhat test solidity
-npx hardhat test nodejs
+| Function | Phase | Description |
+|---|---|---|
+| `createBounty()` | Setup | Creates bounty with commit + reveal deadlines |
+| `submitCommitment()` | Commit | Submit keccak256 hash of your answer |
+| `revealAnswer()` | Reveal | Reveal answer + salt, contract verifies hash |
+| `judgeAll()` | Judge | Trigger Ritual LLM to evaluate all answers |
+| `finalizeWinner()` | Finalize | Pay out the winner |
+| `computeCommitment()` | Helper | Compute hash off-chain for verification |
+
+### Hash Formula
+
+```solidity
+keccak256(abi.encodePacked(answer, salt, msg.sender, bountyId))
 ```
 
-### Make a deployment to Sepolia
+The `msg.sender` and `bountyId` are included to prevent:
+- Cross-bounty replay attacks
+- One user submitting another user's commitment
 
-This project includes an example Ignition module to deploy the contract. You can deploy this module to a locally simulated chain or to Sepolia.
+## Test Plan
 
-To run the deployment to a local chain:
+### Happy Path
+- Create bounty → Commit → Reveal → Judge → Finalize → Winner gets paid
 
-```shell
-npx hardhat ignition deploy ignition/modules/Counter.ts
+### Edge Cases
+| Test | Expected |
+|---|---|
+| Commit after deadline | ❌ Reverts: "commit phase ended" |
+| Reveal before deadline | ❌ Reverts: "commit phase still active" |
+| Reveal after revealDeadline | ❌ Reverts: "reveal phase ended" |
+| Reveal with wrong salt | ❌ Reverts: "commitment mismatch" |
+| Reveal with wrong answer | ❌ Reverts: "commitment mismatch" |
+| Reveal without committing | ❌ Reverts: "no commitment found" |
+| Double commit | ❌ Reverts: "already committed" |
+| Double reveal | ❌ Reverts: "already revealed" |
+| Judge before reveal ends | ❌ Reverts: "reveal phase not ended" |
+| Read answers before reveal ends | ❌ Reverts: "answers hidden until reveal phase ends" |
+
+## Deploy & Verify
+
+```bash
+cd hardhat
+pnpm install
+npx hardhat compile
+npx hardhat ignition deploy ./ignition/modules/AIJudge.ts --network ritual
 ```
 
-To run the deployment to Sepolia, you need an account with funds to send the transaction. The provided Hardhat configuration includes a Configuration Variable called `SEPOLIA_PRIVATE_KEY`, which you can use to set the private key of the account you want to use.
+## Architecture
 
-You can set the `SEPOLIA_PRIVATE_KEY` variable using the `hardhat-keystore` plugin or by setting it as an environment variable.
+See [architecture.md](./architecture.md) for the Advanced Track design using Ritual's TEE.
 
-To set the `SEPOLIA_PRIVATE_KEY` config variable using `hardhat-keystore`:
+## Author
 
-```shell
-npx hardhat keystore set SEPOLIA_PRIVATE_KEY
-```
-
-After setting the variable, you can run the deployment with the Sepolia network:
-
-```shell
-npx hardhat ignition deploy --network sepolia ignition/modules/Counter.ts
-```
+Built for Ritual Academy — Privacy-Preserving AI Bounty Judge Assignment
